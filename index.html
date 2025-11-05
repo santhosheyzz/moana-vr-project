@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Moana Hacker Den — VR Challenge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+
+  <style>
+    /* ---------- Fullscreen loading overlay ---------- */
+    :root {
+      --accent: #00e6ff;
+      --accent-dark: #00bcd4;
+      --bg1: #021026; /* deep ocean */
+      --bg2: #071a2a; /* darker */
+    }
+    html, body { height: 100%; margin: 0; font-family: "Segoe UI", Roboto, sans-serif; background: var(--bg1); color: #e6f7ff; }
+
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, rgba(2,16,38,0.95), rgba(4,12,24,0.95));
+      z-index: 9999;
+      overflow: hidden;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* Ocean wave animated background */
+    .ocean {
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at 30% 30%, rgba(0,200,255,0.08), transparent 10%),
+                  radial-gradient(circle at 70% 70%, rgba(0,150,255,0.04), transparent 15%);
+      opacity: 0.6;
+      animation: float 8s ease-in-out infinite;
+      pointer-events: none;
+      mix-blend-mode: screen;
+    }
+    @keyframes float { 0% { transform: translateY(0) } 50% { transform: translateY(-6px) } 100% { transform: translateY(0) } }
+
+    /* Camera scan lines */
+    .scan {
+      position: absolute;
+      top: -30%;
+      left: -10%;
+      width: 120%;
+      height: 160%;
+      background: linear-gradient(90deg, rgba(0,0,0,0), rgba(0,230,255,0.08), rgba(0,0,0,0));
+      transform: rotate(-12deg);
+      animation: scan 2.5s linear infinite;
+      mix-blend-mode: overlay;
+      pointer-events: none;
+    }
+    @keyframes scan { 0% { transform: translateY(-80%) rotate(-12deg) } 100% { transform: translateY(80%) rotate(-12deg) } }
+
+
+    /* Matrix code rain (enhanced) */
+    .matrix {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      overflow: hidden;
+    }
+    .matrix-canvas {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      position: absolute;
+      top: 0; left: 0;
+      pointer-events: none;
+      z-index: 2;
+      opacity: 0.7;
+      mix-blend-mode: screen;
+    }
+
+    /* Center UI */
+    .loader-card {
+      position: relative;
+      z-index: 10;
+      width: min(820px, 92%);
+      max-width: 920px;
+      padding: 28px;
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(6,18,32,0.7), rgba(6,10,18,0.55));
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display:flex; gap:14px; align-items:center;
+    }
+    .brand .logo {
+      width:72px; height:72px;
+      border-radius: 10px;
+      background: radial-gradient(circle at 30% 30%, var(--accent), var(--accent-dark));
+      display:flex; align-items:center; justify-content:center;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.6), inset 0 -4px 12px rgba(0,0,0,0.2);
+      font-weight:700;
+      font-size:20px;
+      color:#012;
+    }
+    .brand h1 {
+      margin:0; font-size:20px; letter-spacing:0.6px;
+    }
+    .brand p { margin:0; opacity:0.9; font-size:13px; color:#cfefff; }
+
+    /* Progress */
+    .progress-wrap { flex:1; padding-left:14px; }
+    .progress-bar {
+      height: 12px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      overflow:hidden;
+      margin-bottom:12px;
+    }
+    .progress-fill {
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, var(--accent), #00bcd4);
+      box-shadow: 0 4px 14px rgba(0,200,255,0.12);
+      transition: width 300ms linear;
+    }
+    .percent { font-weight:700; font-size:14px; margin-bottom:6px; color:#e8fbff; }
+
+    /* Small status text */
+    .status { opacity:0.9; font-size:13px; color:#cfefff; margin-bottom:6px; }
+
+    /* Enter button */
+    .enter-row { display:flex; gap:12px; align-items:center; }
+    .enter-btn {
+      background: linear-gradient(180deg, var(--accent), var(--accent-dark));
+      color:#012;
+      border:none;
+      padding:10px 18px;
+      border-radius:10px;
+      font-weight:700;
+      cursor:pointer;
+      box-shadow:0 8px 24px rgba(0,180,220,0.12);
+      transform: translateY(0);
+    }
+    .enter-btn[disabled] { opacity:0.35; cursor:not-allowed; transform: none; }
+
+    .hint {
+      font-size:12px; color: rgba(230,255,255,0.75);
+      opacity:0.95;
+    }
+
+    /* Small flair text line */
+    .small {
+      font-size:12px;
+      color: #00ff41cc;
+      margin-top:4px;
+      text-shadow: 0 0 4px #003a12, 0 0 2px #00ff41;
+    }
+
+    /* Fade out animation for overlay */
+    .hide-overlay {
+      animation: overlay-close 900ms ease forwards;
+    }
+    @keyframes overlay-close {
+      0% { opacity:1; transform: scale(1); }
+      100% { opacity:0; transform: scale(0.98); visibility: hidden; }
+    }
+
+    /* Responsive */
+    @media (max-width:640px) {
+      .loader-card { padding:16px; flex-direction: column; gap:12px; align-items:flex-start; }
+      .brand h1 { font-size:18px; }
+      .brand .logo { width:58px; height:58px; font-size:18px; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" role="status" aria-live="polite">
+    <div class="ocean"></div>
+    <div class="scan"></div>
+
+    <!-- Enhanced matrix code rain background -->
+    <div class="matrix" aria-hidden="true">
+      <canvas class="matrix-canvas" id="matrixCanvas"></canvas>
+    </div>
+
+    <div class="loader-card" id="loaderCard">
+      <div class="brand">
+        <div class="logo" style="overflow:hidden; padding:0; background:#012; display:flex; align-items:center; justify-content:center;">
+          <img src="profile.png" alt="Profile" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" />
+        </div>
+        <div>
+          <h1>Moana Den — Accessing</h1>
+          <p>Polynesian-inspired hacker challenge • VR 360</p>
+          <div class="small">Camera feed initializing…</div>
+        </div>
+      </div>
+
+        <div class="progress-wrap">
+          <div class="percent" id="percent">0%</div>
+          <div class="progress-bar" aria-hidden="true">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <div class="status" id="status">Loading assets: 0 / 6</div>
+
+          <form id="passwordForm" style="margin-top:18px; display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
+            <label for="passwordInput" style="font-size:14px; color:#e8fbff;">Enter password to access:</label>
+            <input id="passwordInput" type="password" minlength="1" maxlength="32" autocomplete="off" style="padding:7px 12px; border-radius:7px; border:1px solid #00ff41; background:#021026; color:#00ff41; font-size:16px; outline:none; width:220px;" />
+            <div class="enter-row">
+              <button id="enterBtn" class="enter-btn" type="submit" disabled>ENTER</button>
+            </div>
+            <div id="passwordError" style="color:#ff3b3b; font-size:13px; min-height:18px;"></div>
+          </form>
+        </div>
+    </div>
+  </div>
+
+  <!-- A-Frame Scene (hidden until loading completes) -->
+  <a-scene embedded style="width:100%; height:100vh; display:block;">
+    <a-assets>
+      <!-- Replace these with your actual filenames -->
+      <img id="pano1" src="pano1.jpg">
+      <img id="pano2" src="pano2.jpg">
+      <img id="pano3" src="pano3.jpg">
+      <img id="pano4" src="pano4.jpg">
+      <img id="pano5" src="pano5.jpg">
+      <audio id="bg-music" src="moana-theme.mp3"></audio>
+    </a-assets>
+
+    <!-- Background music (start after enter) -->
+    <a-entity id="bgSound" sound="src: #bg-music; autoplay: false; loop: true; volume: 0.7"></a-entity>
+
+    <!-- The sky / panorama container -->
+    <a-sky id="sky" src="#pano1" rotation="0 -90 0"></a-sky>
+
+    <!-- Basic camera -->
+    <a-entity camera look-controls wasd-controls position="0 1.6 0"></a-entity>
+  </a-scene>
+
+  <script>
+    // ---------- Matrix code rain effect ----------
+    function startMatrixRain() {
+      const canvas = document.getElementById('matrixCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      // Set canvas size
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      // Characters for Matrix rain
+      const chars = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズヅブプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッンABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      const fontSize = 18;
+      const columns = Math.floor(canvas.width / fontSize);
+      const drops = Array(columns).fill(1);
+
+      function draw() {
+        ctx.fillStyle = 'rgba(0, 16, 0, 0.18)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.font = fontSize + 'px monospace';
+        ctx.fillStyle = '#00ff41';
+        for (let i = 0; i < drops.length; i++) {
+          const text = chars[Math.floor(Math.random() * chars.length)];
+          ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+          if (Math.random() > 0.975) {
+            drops[i] = 0;
+          }
+          drops[i]++;
+          if (drops[i] * fontSize > canvas.height) {
+            drops[i] = 0;
+          }
+        }
+      }
+      setInterval(draw, 45);
+    }
+    startMatrixRain();
+
+    // ---------- Asset list to preload ----------
+    const assetsToLoad = [
+      {type:'img', id:'pano1', src:'pano1.jpg'},
+      {type:'img', id:'pano2', src:'pano2.jpg'},
+      {type:'img', id:'pano3', src:'pano3.jpg'},
+      {type:'img', id:'pano4', src:'pano4.jpg'},
+      {type:'img', id:'pano5', src:'pano5.jpg'},
+      {type:'audio', id:'bg-music', src:'moana-theme.mp3'}
+    ];
+
+    const total = assetsToLoad.length;
+    let loaded = 0;
+
+    const progressFill = document.getElementById('progressFill');
+    const percentText = document.getElementById('percent');
+    const statusText = document.getElementById('status');
+  const enterBtn = document.getElementById('enterBtn');
+  const overlay = document.getElementById('loading-overlay');
+  const passwordForm = document.getElementById('passwordForm');
+  const passwordInput = document.getElementById('passwordInput');
+  const passwordError = document.getElementById('passwordError');
+
+    // Helper to update UI
+    function updateProgress() {
+      const pct = Math.round((loaded / total) * 100);
+      progressFill.style.width = pct + '%';
+      percentText.innerText = pct + '%';
+      statusText.innerText = `Loading assets: ${loaded} / ${total}`;
+      if (loaded >= total) {
+        // Only enable button if password is correct
+        checkPasswordInput();
+        statusText.innerText = 'Ready — enter password to access the den';
+      }
+    }
+
+    // Preload images and audio (with events)
+    function preload() {
+      assetsToLoad.forEach(item => {
+        if (item.type === 'img') {
+          const img = new Image();
+          img.src = item.src;
+          img.onload = () => { loaded++; updateProgress(); };
+          img.onerror = () => { loaded++; updateProgress(); console.warn('Failed to load', item.src); };
+        } else if (item.type === 'audio') {
+          const a = document.createElement('audio');
+          a.src = item.src;
+          // don't autoplay in many browsers; reserve until ENTER
+          a.oncanplaythrough = () => { loaded++; updateProgress(); };
+          a.onerror = () => { loaded++; updateProgress(); console.warn('Audio failed', item.src); };
+        }
+      });
+    }
+
+    // Start preloading
+    preload();
+
+    // Request fullscreen for immersive experience
+    function requestFullscreen() {
+      const elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen();
+      } else if (elem.mozRequestFullScreen) { /* Firefox */
+        elem.mozRequestFullScreen();
+      } else if (elem.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
+        elem.webkitRequestFullscreen();
+      } else if (elem.msRequestFullscreen) { /* IE/Edge */
+        elem.msRequestFullscreen();
+      }
+    }
+
+    // ENTER logic: animate overlay out, start music, reveal scene
+    function enterScene() {
+      // add hide animation
+      overlay.classList.add('hide-overlay');
+
+      // Request fullscreen on user gesture
+      requestFullscreen();
+
+      // start A-Frame audio (play via user gesture)
+      const bg = document.getElementById('bgSound');
+      // Use setTimeout to allow overlay animation to finish
+      setTimeout(() => {
+        // play audio
+        bg.components.sound.playSound();
+        // optional: small camera pulse / vignette - we can also implement other transitions
+      }, 600);
+
+      // After overlay hides, completely remove it from DOM to avoid blocking interactions
+      setTimeout(() => {
+        overlay.style.display = 'none';
+      }, 1100);
+    }
+
+    // Try to request fullscreen on page load (may be blocked by browser, but harmless)
+    window.addEventListener('load', () => {
+      setTimeout(requestFullscreen, 200);
+    });
+
+    // Password logic
+    function checkPasswordInput() {
+      if (loaded < total) {
+        enterBtn.disabled = true;
+        return;
+      }
+      if (passwordInput.value === '13') {
+        enterBtn.disabled = false;
+        passwordError.textContent = '';
+      } else {
+        enterBtn.disabled = true;
+        if (passwordInput.value.length > 0) {
+          passwordError.textContent = 'Incorrect password';
+        } else {
+          passwordError.textContent = '';
+        }
+      }
+    }
+    passwordInput.addEventListener('input', checkPasswordInput);
+
+    // Submit form to enter scene
+    passwordForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      if (passwordInput.value === '13') {
+        enterScene();
+      } else {
+        passwordError.textContent = 'Incorrect password';
+      }
+    });
+
+  // Extra effect: auto-enable ENTER when progress reaches 100%
+  updateProgress();
+  checkPasswordInput();
+
+    // Safety fallback: if some browsers block audio on canplaythrough, allow a fallback
+    // Wait max 10s: if loaded < total by then, still allow enter
+    setTimeout(() => {
+      if (loaded < total) {
+        enterBtn.disabled = false;
+        statusText.innerText = 'Partial load detected — press ENTER to continue';
+      }
+    }, 10000);
+
+    // Optional: small camera shutter + "ACCESS GRANTED" effect
+    function showAccessFlash() {
+      const flash = document.createElement('div');
+      flash.style.position = 'fixed';
+      flash.style.inset = 0;
+      flash.style.background = 'radial-gradient(circle at 50% 40%, rgba(0,230,255,0.14), rgba(0,0,0,0.0) 30%)';
+      flash.style.zIndex = 9998;
+      flash.style.pointerEvents = 'none';
+      document.body.appendChild(flash);
+      flash.animate([{opacity:1},{opacity:0}], {duration:900, easing:'ease-out'});
+      setTimeout(()=> flash.remove(), 900);
+    }
+
+    // Hook into enter button to show a quick flash
+    enterBtn.addEventListener('click', showAccessFlash);
+
+    // --------- Auto-change panorama every 20 seconds ---------
+    const panoIds = ['#pano1', '#pano2', '#pano3', '#pano4', '#pano5'];
+    let currentPano = 0;
+    function changePanorama() {
+      const sky = document.getElementById('sky');
+      if (!sky) return;
+      currentPano = (currentPano + 1) % panoIds.length;
+      sky.setAttribute('src', panoIds[currentPano]);
+    }
+    // Start cycling after scene is visible
+    function startPanoramaCycle() {
+      setInterval(changePanorama, 10000); // 20 seconds
+    }
+    // Wait until overlay is hidden, then start cycling
+    const observer = new MutationObserver(() => {
+      if (overlay.style.display === 'none') {
+        startPanoramaCycle();
+        observer.disconnect();
+      }
+    });
+    observer.observe(overlay, { attributes: true, attributeFilter: ['style'] });
+  </script>
+
+</body>
+</html>
