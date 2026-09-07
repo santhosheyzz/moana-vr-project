@@ -2,3 +2,4 @@ User-agent: *
 Disallow:
 
 VITxCS{Vanakam_da_mapla_Google_Robots.txt!!}
+MnRDaSwg
