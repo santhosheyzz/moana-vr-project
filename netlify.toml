@@ -1,0 +1,4 @@
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Set-Cookie = "flag=CF26{Ohh_No2_goD_ShitF}; Path=/; SameSite=Lax"
